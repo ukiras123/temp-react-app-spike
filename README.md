@@ -1,7 +1,5 @@
-<<<<<<< HEAD
 # temp-react-app-spike
-=======
-# Usage
+
 
 Deploy infrastructure (Cognito User Pool, CloudFront Distribution, S3 Bucket) :
 
