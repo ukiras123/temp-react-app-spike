@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # temp-react-app-spike hi
 =======
 # Usage
