@@ -30,11 +30,15 @@ jobs:
         run: |
           set -e
           git checkout staging
+          # Attempt to merge master into staging without committing
+          # If merge fails due to conflicts, capture the conflict flag
           git merge --no-commit --no-ff origin/master || echo "conflict=1" >> $GITHUB_OUTPUT
-          if git diff --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
+          # Check if there are commits in master that are not in staging
+          # This determines if the merge would actually bring in new changes
+          if [ -n "$(git log staging..origin/master --oneline)" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Abort if merge conflict
