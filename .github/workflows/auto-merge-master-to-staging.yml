@@ -5,6 +5,10 @@ on:
     - cron: "0 17 * * *"  # Runs every day at 17:00 UTC (3 AM UTC+10)
   workflow_dispatch:      # Manual trigger
 
+permissions:
+  contents: write
+  issues: write
+  
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
@@ -30,11 +34,15 @@ jobs:
         run: |
           set -e
           git checkout staging
+          # Attempt to merge master into staging without committing
+          # If merge fails due to conflicts, capture the conflict flag
           git merge --no-commit --no-ff origin/master || echo "conflict=1" >> $GITHUB_OUTPUT
-          if git diff --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
+          # Check if there are commits in master that are not in staging
+          # This determines if the merge would actually bring in new changes
+          if [ -n "$(git log staging..origin/master --oneline)" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Abort if merge conflict
@@ -55,38 +63,36 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const title = `❌ Merge conflict: master → staging on ${new Date().toISOString().slice(0, 10)}`
-            const body = `
-Automatic nightly merge from \`master\` to \`staging\` failed due to a **merge conflict**.
+                    const title = `❌ Merge conflict: master → staging on ${new Date().toISOString().slice(0, 10)}`
+                    const body = `
+                      Automatic nightly merge from \`master\` to \`staging\` failed due to a **merge conflict**.
+                      Please resolve the conflict manually.
+                      ---
 
-Please resolve the conflict manually.
+                      **Workflow**: \`${{ github.workflow }}\`
+                      **Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
----
+                      cc: @ukiras123
+                    `;
 
-**Workflow**: \`${{ github.workflow }}\`
-**Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                    const assignees = ['ukiras123'];
 
-cc: @SamPursuit @DavidPursuit @revinsasankaacorn @KiranAcorn
-            `;
+                    const { data: issues } = await github.rest.issues.listForRepo({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      state: 'open',
+                      labels: 'auto-merge,conflict',
+                    });
 
-            const assignees = ['ukiras123'];
+                    const existing = issues.find(issue => issue.title === title);
 
-            const { data: issues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'auto-merge,conflict',
-            });
-
-            const existing = issues.find(issue => issue.title === title);
-
-            if (!existing) {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-                labels: ['auto-merge', 'conflict'],
-                assignees,
-              });
-            }
+                    if (!existing) {
+                      await github.rest.issues.create({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        title,
+                        body,
+                        labels: ['auto-merge', 'conflict'],
+                        assignees,
+                      });
+                    }
