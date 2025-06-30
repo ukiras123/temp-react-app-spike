@@ -25,36 +25,16 @@ jobs:
       - name: Fetch master
         run: git fetch origin master:master
 
-      - name: Debug: Show branch differences before merge
-        run: |
-          echo "--- Git log differences (staging vs master) ---"
-          git log origin/master..HEAD --oneline --graph --decorate=short # Commits on staging not on master
-          git log HEAD..origin/master --oneline --graph --decorate=short # Commits on master not on staging
-          echo "--- End Debug ---"
-          git status
-
       - name: Attempt merge
         id: attempt_merge
         run: |
           set -e
-          echo "Attempting merge..."
-          # Capture output of merge command to see if it says "Already up to date."
-          MERGE_OUTPUT=$(git merge --no-commit --no-ff origin/master 2>&1) || MERGE_FAILED=true
-          echo "$MERGE_OUTPUT" # Print merge output
-          echo "Merge command exited with status: $?"
-
-          if [ "$MERGE_FAILED" = "true" ]; then
-            echo "conflict=1" >> $GITHUB_OUTPUT
-            echo "Merge failed: $MERGE_OUTPUT" >&2
+          git checkout staging
+          git merge --no-commit --no-ff origin/master || echo "conflict=1" >> $GITHUB_OUTPUT
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
           else
-            echo "Merge attempted successfully. Checking for changes..."
-            if git diff --quiet; then
-              echo "changed=false" >> $GITHUB_OUTPUT
-              echo "No changes detected after merge (git diff --quiet returned 0)."
-            else
-              echo "changed=true" >> $GITHUB_OUTPUT
-              echo "Changes detected after merge (git diff --quiet returned non-0)."
-            fi
+            echo "changed=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Abort if merge conflict
@@ -68,7 +48,6 @@ jobs:
         run: |
           git commit -am "🤖 Auto-merged master into staging"
           git push origin staging
-          echo "✅ Successfully committed and pushed auto-merge."
 
       - name: Notify via issue (with assignees)
         if: steps.attempt_merge.outputs.conflict == '1'
