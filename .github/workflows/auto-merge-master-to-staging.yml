@@ -5,6 +5,10 @@ on:
     - cron: "0 17 * * *"  # Runs every day at 17:00 UTC (3 AM UTC+10)
   workflow_dispatch:      # Manual trigger
 
+permissions:
+  contents: write
+  issues: write
+  
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
